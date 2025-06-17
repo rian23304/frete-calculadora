@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cadastro de Transportadoras - Importar Excel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f2f6fc;
+      color: #222;
+    }
+    h1 {
+      color: #1a237e;
+      margin-bottom: 20px;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background: #3949ab;
+      color: white;
+    }
+    button {
+      padding: 10px 20px;
+      background: #3949ab;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #303f9f;
+    }
+    #msg {
+      margin-top: 10px;
+      font-weight: bold;
+      color: green;
+    }
+    nav {
+      margin-bottom: 20px;
+    }
+    nav a {
+      color: #3949ab;
+      text-decoration: none;
+      margin-right: 15px;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">Calculadora de Frete</a>
+    <a href="cadastro.html"><strong>Cadastro</strong></a>
+  </nav>
+  <h1>Importar Transportadoras e Cidades (Excel)</h1>
+  <p>Escolha um arquivo Excel (.xlsx) com as colunas:</p>
+  <ul>
+    <li>Transportadora</li>
+    <li>Cidade</li>
+    <li>Frete Mínimo</li>
+    <li>Frete %</li>
+    <li>Frete por kg</li>
+    <li>Adicional % da Nota</li>
+    <li>Pedágio</li>
+    <li>Qtd Praças Pedágio</li>
+  </ul>
+
+  <input type="file" id="inputExcel" accept=".xlsx" />
+  <button onclick="limparDados()">Limpar dados salvos</button>
+  <div id="msg"></div>
+
+  <table id="previewTabela" style="display:none">
+    <thead>
+      <tr>
+        <th>Transportadora</th>
+        <th>Cidade</th>
+        <th>Frete Mínimo</th>
+        <th>Frete %</th>
+        <th>Frete por kg</th>
+        <th>Adicional % da Nota</th>
+        <th>Pedágio</th>
+        <th>Qtd Praças Pedágio</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script>
+    const inputExcel = document.getElementById('inputExcel');
+    const previewTabela = document.getElementById('previewTabela');
+    const previewBody = previewTabela.querySelector('tbody');
+    const msg = document.getElementById('msg');
+
+    inputExcel.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        // Validar e montar lista
+        const dadosValidados = [];
+
+        for (let i = 0; i < jsonData.length; i++) {
+          const linha = jsonData[i];
+
+          // Verifique as propriedades em caixa exata ou ignorar espaços:
+          const transportadora = linha['Transportadora'] || linha['transportadora'] || linha['TRANSPORTADORA'] || '';
+          const cidade = linha['Cidade'] || linha['cidade'] || linha['CIDADE'] || '';
+          const freteMinimo = parseFloat(linha['Frete Mínimo'] || linha['frete mínimo'] || linha['FRETE MINIMO'] || linha['Frete Minimo'] || 0);
+          const fretePercentual = parseFloat(linha['Frete %'] || linha['frete %'] || linha['FRETE %'] || 0);
+          const fretePorKg = parseFloat(linha['Frete por kg'] || linha['frete por kg'] || linha['FRETE POR KG'] || 0);
+          const adicionalNota = parseFloat(linha['Adicional % da Nota'] || linha['adicional % da nota'] || linha['ADICIONAL % DA NOTA'] || 0);
+          const pedagio = parseFloat(linha['Pedágio'] || linha['pedágio'] || linha['PEDÁGIO'] || linha['Pedagio'] || 0);
+          const qtdPedagios = parseInt(linha['Qtd Praças Pedágio'] || linha['qtd praças pedágio'] || linha['QTD PRAÇAS PEDÁGIO'] || linha['Qtd Pracas Pedagio'] || 0);
+
+          if (transportadora && cidade) {
+            dadosValidados.push({
+              transportadora: transportadora,
+              cidade: cidade,
+              freteMinimo: isNaN(freteMinimo) ? 0 : freteMinimo,
+              fretePercentual: isNaN(fretePercentual) ? 0 : fretePercentual,
+              fretePorKg: isNaN(fretePorKg) ? 0 : fretePorKg,
+              adicionalNota: isNaN(adicionalNota) ? 0 : adicionalNota,
+              pedagio: isNaN(pedagio) ? 0 : pedagio,
+              qtdPedagios: isNaN(qtdPedagios) ? 0 : qtdPedagios,
+            });
+          }
+        }
+
+        if (dadosValidados.length === 0) {
+          msg.style.color = 'red';
+          msg.textContent = 'Nenhum dado válido encontrado no arquivo.';
+          previewTabela.style.display = 'none';
+          return;
+        }
+
+        // Mostrar preview na tabela
+        previewBody.innerHTML = '';
+        dadosValidados.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${item.transportadora}</td>
+            <td>${item.cidade}</td>
+            <td>${item.freteMinimo.toFixed(2)}</td>
+            <td>${(item.fretePercentual*100).toFixed(2)}%</td>
+            <td>${item.fretePorKg.toFixed(2)}</td>
+            <td>${(item.adicionalNota*100).toFixed(2)}%</td>
+            <td>${item.pedagio.toFixed(2)}</td>
+            <td>${item.qtdPedagios}</td>
+          `;
+          previewBody.appendChild(tr);
+        });
+
+        previewTabela.style.display = 'table';
+        msg.style.color = 'green';
+        msg.textContent = `Dados carregados. Total: ${dadosValidados.length} registros. Clique fora para carregar.`;
+
+        // Salvar no localStorage assim que carregar o arquivo:
+        localStorage.setItem('fretes', JSON.stringify(dadosValidados));
+      };
+
+      reader.readAsBinaryString(file);
+    });
+
+    function limparDados() {
+      if (confirm('Tem certeza que quer apagar todos os dados salvos?')) {
+        localStorage.removeItem('fretes');
+        previewTabela.style.display = 'none';
+        msg.textContent = 'Dados apagados.';
+      }
+    }
+  </script>
+</body>
+</html>
